@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: curiositas
+  jpa:
+    # Keep database access inside the service layer instead of during view rendering.
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema; Hibernate only verifies that entities match it.
+      ddl-auto: validate
