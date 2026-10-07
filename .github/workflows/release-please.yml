@@ -1,0 +1,22 @@
+name: Release Please
+
+# Keeps a release pull request up to date with the next version and changelog,
+# calculated from Conventional Commits. Merging that pull request creates the tag and release.
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or update release pull request
+        uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
