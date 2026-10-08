@@ -14,7 +14,8 @@ tables, and the project doubles as a showcase of API design and API testing.
 
 ## Getting started
 
-Requirements: JDK 21 and Docker (Docker Desktop on Windows/macOS).
+Requirements: JDK 21 and Docker (Docker Desktop on Windows/macOS). Docker must be running both
+when starting the application and when running the tests.
 
 ```bash
 ./mvnw spring-boot:run
