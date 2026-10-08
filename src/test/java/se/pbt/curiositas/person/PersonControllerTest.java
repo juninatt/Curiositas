@@ -17,7 +17,11 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static se.pbt.curiositas.person.StoredPersons.stored;
 
@@ -125,14 +129,111 @@ class PersonControllerTest {
                 .hasPathSatisfying("$.detail", detail -> assertThat(detail).asString().contains("size"));
     }
 
-    /** Answers 501 for writes that are not built yet, instead of pretending they worked. */
+    /** Creates a person and answers 201 with its URL, its version as ETag and the stored data. */
     @Test
-    void answersNotImplementedForWrites() {
-        assertThat(mvc.post().uri("/api/v1/persons")
+    void createsPerson() {
+        given(service.create(any())).willAnswer(invocation -> stored(invocation.getArgument(0), ID, 0));
+
+        assertThat(post("""
+                {
+                  "name": "Edward Teach",
+                  "alsoKnownAs": [{ "name": "Blackbeard", "type": "NICKNAME" }],
+                  "birth": { "year": 1680, "uncertaintyYears": 5 },
+                  "death": { "year": 1718, "month": 11, "day": 22 },
+                  "birthCountry": "GB",
+                  "gender": "MALE"
+                }"""))
+                .hasStatus(HttpStatus.CREATED)
+                .hasHeader("Location", "http://localhost/api/v1/persons/" + ID)
+                .hasHeader("ETag", "\"0\"")
+                .bodyJson()
+                .hasPathSatisfying("$.alsoKnownAs[0].name", name -> assertThat(name).asString().isEqualTo("Blackbeard"))
+                .hasPathSatisfying("$.birth.display", text -> assertThat(text).asString().isEqualTo("1680 ± 5"))
+                .hasPathSatisfying("$.ageAtDeath.max", max -> assertThat(max).asNumber().isEqualTo(43))
+                .hasPathSatisfying("$.birthCountry.name", country -> assertThat(country).asString().isEqualTo("United Kingdom"));
+    }
+
+    /** Answers 422 with one field error per broken schema rule, so the client can fix all at once. */
+    @Test
+    void rejectsBodyThatBreaksTheSchema() {
+        assertThat(post("""
+                { "birth": { "year": 1680, "month": 13 }, "birthCountry": "gb", "gender": "MALE" }"""))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .bodyJson()
+                .hasPathSatisfying("$.errors[*].field", fields -> assertThat(fields).asInstanceOf(LIST)
+                        .containsExactly("birth.month", "birthCountry", "name"));
+        then(service).shouldHaveNoInteractions();
+    }
+
+    /** Answers 422 for data the schema allows but that cannot be true, naming each field. */
+    @Test
+    void rejectsImpossibleData() {
+        assertThat(post("""
+                {
+                  "name": "Edward Teach",
+                  "birth": { "year": 1718, "month": 4, "day": 31 },
+                  "birthCountry": "XX",
+                  "gender": "MALE"
+                }"""))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .bodyJson()
+                .hasPathSatisfying("$.errors[*].field", fields -> assertThat(fields).asInstanceOf(LIST)
+                        .containsExactly("birth", "birthCountry"));
+        then(service).shouldHaveNoInteractions();
+    }
+
+    /** Answers 422 when death can only have happened before birth. */
+    @Test
+    void rejectsDeathBeforeBirth() {
+        assertThat(post("""
+                { "name": "Edward Teach", "birth": { "year": 1718 }, "death": { "year": 1680 }, "gender": "MALE" }"""))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .bodyJson()
+                .hasPathSatisfying("$.errors[0].field", field -> assertThat(field).asString().isEqualTo("death"));
+    }
+
+    /** Answers 422 naming the field when a value is not one of the allowed ones. */
+    @Test
+    void rejectsUnknownEnumValue() {
+        assertThat(post("""
+                { "name": "Edward Teach", "gender": "PIRATE" }"""))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .bodyJson()
+                .hasPathSatisfying("$.errors[0].field", field -> assertThat(field).asString().isEqualTo("gender"));
+    }
+
+    /** Answers 400 when the body is not valid JSON at all, since nothing in it can be trusted. */
+    @Test
+    void rejectsMalformedJson() {
+        assertThat(post("{ \"name\": "))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    /** Deletes a person and answers 204 without a body. */
+    @Test
+    void deletesPerson() {
+        assertThat(mvc.delete().uri("/api/v1/persons/{id}", ID).with(httpBasic("admin", "test-password")))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        then(service).should().delete(ID);
+    }
+
+    /** Answers 404 when deleting a person that does not exist. */
+    @Test
+    void answersNotFoundWhenDeletingUnknownPerson() {
+        willThrow(new PersonNotFoundException(ID)).given(service).delete(ID);
+
+        assertThat(mvc.delete().uri("/api/v1/persons/{id}", ID).with(httpBasic("admin", "test-password")))
+                .hasStatus(HttpStatus.NOT_FOUND)
+                .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    /** Sends a person as the admin. */
+    private MockMvcTester.MockMvcRequestBuilder post(String json) {
+        return mvc.post().uri("/api/v1/persons")
                 .with(httpBasic("admin", "test-password"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\": \"Edward Teach\", \"gender\": \"MALE\"}"))
-                .hasStatus(HttpStatus.NOT_IMPLEMENTED)
-                .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+                .content(json);
     }
 }

@@ -6,25 +6,108 @@ import se.pbt.curiositas.api.model.AlternativeNameDto;
 import se.pbt.curiositas.api.model.CountryDto;
 import se.pbt.curiositas.api.model.GenderDto;
 import se.pbt.curiositas.api.model.HistoricalDateDto;
+import se.pbt.curiositas.api.model.HistoricalDateInputDto;
 import se.pbt.curiositas.api.model.NameTypeDto;
 import se.pbt.curiositas.api.model.PersonDto;
+import se.pbt.curiositas.api.model.PersonInputDto;
 import se.pbt.curiositas.api.model.PersonPageDto;
 import se.pbt.curiositas.date.AgeRange;
 import se.pbt.curiositas.date.HistoricalDate;
+import se.pbt.curiositas.person.InvalidPersonException.Violation;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
- * Converts persons to the API's response models. This is where derived values such as display
- * texts, age at death and country names are calculated, so they are never stored.
+ * Converts between persons and the API's models. Incoming data is checked against the rules that
+ * the contract's schema cannot express; outgoing data gets its derived values, such as display
+ * texts, age at death and country names, which are never stored.
  */
 final class PersonMapper {
 
+    /** The ISO 3166-1 alpha-2 codes of current countries. */
+    private static final Set<String> COUNTRY_CODES = Set.of(Locale.getISOCountries());
+
     /** Not instantiable; all methods are static. */
     private PersonMapper() {
+    }
+
+    /**
+     * Creates a new person from a request.
+     *
+     * @param input the person as sent by the client, already checked against the schema
+     * @return the new, not yet saved person
+     * @throws InvalidPersonException if the data is impossible, listing every problem found
+     */
+    static Person toNewPerson(PersonInputDto input) {
+        Person person = new Person(input.getName(), Gender.valueOf(input.getGender().name()));
+        copyInput(input, person);
+        return person;
+    }
+
+    /**
+     * Copies all fields of a request onto a person. Nothing is changed unless all data is valid,
+     * so a rejected request never leaves a half-updated person behind.
+     *
+     * @param input  the person as sent by the client, already checked against the schema
+     * @param person the person to update
+     * @throws InvalidPersonException if the data is impossible, listing every problem found
+     */
+    static void copyInput(PersonInputDto input, Person person) {
+        List<Violation> violations = new ArrayList<>();
+        HistoricalDate birth = toDate("birth", input.getBirth(), violations);
+        HistoricalDate death = toDate("death", input.getDeath(), violations);
+        HistoricalDate floruit = toDate("floruit", input.getFloruit(), violations);
+        if (birth != null && death != null) {
+            try {
+                AgeRange.between(birth, death);
+            } catch (IllegalArgumentException impossibleLife) {
+                violations.add(new Violation("death", impossibleLife.getMessage()));
+            }
+        }
+        String birthCountry = input.getBirthCountry();
+        if (birthCountry != null && !COUNTRY_CODES.contains(birthCountry)) {
+            violations.add(new Violation("birthCountry",
+                    "must be the ISO 3166-1 alpha-2 code of a current country, but was " + birthCountry));
+        }
+        if (!violations.isEmpty()) {
+            throw new InvalidPersonException(violations);
+        }
+
+        person.setName(input.getName());
+        person.setGender(Gender.valueOf(input.getGender().name()));
+        person.setWikidataId(input.getWikidataId());
+        person.setAlsoKnownAs(input.getAlsoKnownAs().stream()
+                .map(name -> new AlternativeName(name.getName(), NameType.valueOf(name.getType().name())))
+                .toList());
+        person.setBirth(birth);
+        person.setDeath(death);
+        person.setFloruit(floruit);
+        person.setBirthPlace(input.getBirthPlace());
+        person.setDeathPlace(input.getDeathPlace());
+        person.setBirthCountry(birthCountry);
+    }
+
+    /**
+     * Creates a date from a request, or records why it is impossible. Returns {@code null} both
+     * for an unknown date and for an invalid one; in the latter case a violation is added.
+     */
+    private static HistoricalDate toDate(String field, HistoricalDateInputDto input, List<Violation> violations) {
+        if (input == null) {
+            return null;
+        }
+        int uncertaintyYears = input.getUncertaintyYears() != null ? input.getUncertaintyYears() : 0;
+        try {
+            return new HistoricalDate(input.getYear(), input.getMonth(), input.getDay(), uncertaintyYears);
+        } catch (IllegalArgumentException impossibleDate) {
+            violations.add(new Violation(field, impossibleDate.getMessage()));
+            return null;
+        }
     }
 
     /**

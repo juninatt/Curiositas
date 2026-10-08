@@ -17,10 +17,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import se.pbt.curiositas.person.PersonController;
 import se.pbt.curiositas.person.PersonService;
+import se.pbt.curiositas.person.StoredPersons;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 
@@ -74,32 +77,34 @@ class WriteSecurityTest {
                 .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
-    /**
-     * Lets the admin through to the controller. The writes are not built yet, so reaching them
-     * shows as 501 rather than 401.
-     */
+    /** Lets the admin through to the controller, which answers as it would for any valid write. */
     @ParameterizedTest
     @EnumSource(value = WriteRequest.class)
     void letsAdminWrite(WriteRequest write) {
+        given(service.create(any())).willAnswer(invocation ->
+                StoredPersons.stored(invocation.getArgument(0), UUID.randomUUID(), 0));
+
         assertThat(mvc.method(write.method).uri(write.uri)
                 .with(httpBasic("admin", "test-password"))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
-                .hasStatus(HttpStatus.NOT_IMPLEMENTED);
+                .hasStatus(write.statusForAdmin);
     }
 
-    /** The write operations in the contract, each with its method and path. */
+    /** The write operations in the contract, each with its method, path and answer for the admin. */
     enum WriteRequest {
-        CREATE(HttpMethod.POST, "/api/v1/persons"),
-        REPLACE(HttpMethod.PUT, PERSON),
-        DELETE(HttpMethod.DELETE, PERSON);
+        CREATE(HttpMethod.POST, "/api/v1/persons", HttpStatus.CREATED),
+        REPLACE(HttpMethod.PUT, PERSON, HttpStatus.NOT_IMPLEMENTED),
+        DELETE(HttpMethod.DELETE, PERSON, HttpStatus.NO_CONTENT);
 
         private final HttpMethod method;
         private final String uri;
+        private final HttpStatus statusForAdmin;
 
-        /** Pairs an HTTP method with the path it is sent to. */
-        WriteRequest(HttpMethod method, String uri) {
+        /** Pairs an HTTP method with the path it is sent to and the status the admin gets. */
+        WriteRequest(HttpMethod method, String uri, HttpStatus statusForAdmin) {
             this.method = method;
             this.uri = uri;
+            this.statusForAdmin = statusForAdmin;
         }
     }
 }

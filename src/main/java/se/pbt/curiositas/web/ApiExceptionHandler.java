@@ -3,23 +3,38 @@ package se.pbt.curiositas.web;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import se.pbt.curiositas.api.model.FieldErrorDto;
+import se.pbt.curiositas.person.InvalidPersonException;
 import se.pbt.curiositas.person.PersonNotFoundException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DatabindException;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * Turns errors into Problem Details (RFC 9457), so every error from the API has the same shape.
- * Spring's own errors, such as unreadable JSON or an invalid parameter, are handled by the base
- * class; this class adds the application's own errors.
+ * Spring's own errors are handled by the base class; this class adds the application's own errors
+ * and answers 422 for every request that is readable but invalid, so clients only need to handle
+ * one kind of validation error. 400 is kept for requests that cannot be read at all.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    /** Orders field errors so the response is the same every time for the same request. */
+    private static final Comparator<FieldErrorDto> BY_FIELD =
+            Comparator.comparing(FieldErrorDto::getField).thenComparing(FieldErrorDto::getMessage);
 
     /**
      * Answers 404 Not Found when a requested person does not exist.
@@ -30,6 +45,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler
     ProblemDetail handlePersonNotFound(PersonNotFoundException exception) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
+    /**
+     * Answers 422 when a person's data is impossible, for example a date that does not exist.
+     *
+     * @param exception every problem found
+     * @return the problem description with one field error per problem
+     */
+    @ExceptionHandler
+    ProblemDetail handleInvalidPerson(InvalidPersonException exception) {
+        return unprocessable(exception.getViolations().stream()
+                .map(violation -> new FieldErrorDto(violation.field(), violation.message()))
+                .toList());
     }
 
     /**
@@ -62,5 +90,59 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 .sorted()
                 .collect(Collectors.joining("; "));
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+    }
+
+    /**
+     * Answers 422 when a request body breaks the contract's schema, for example a missing name or
+     * month 13, listing every field that failed.
+     */
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException exception, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        List<FieldErrorDto> errors = exception.getBindingResult().getFieldErrors().stream()
+                .map(error -> new FieldErrorDto(error.getField(), error.getDefaultMessage()))
+                .toList();
+        return handleExceptionInternal(exception, unprocessable(errors), headers, HttpStatus.UNPROCESSABLE_CONTENT, request);
+    }
+
+    /**
+     * Answers 422 when the JSON is valid but a value has the wrong type or is not allowed, such as
+     * an unknown gender, naming the field. Malformed JSON still gets 400, since nothing in it can
+     * be trusted.
+     */
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException exception, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        if (exception.getCause() instanceof DatabindException invalidValue) {
+            FieldErrorDto error = new FieldErrorDto(fieldPath(invalidValue),
+                    "has a value of the wrong type or outside the allowed values");
+            return handleExceptionInternal(exception, unprocessable(List.of(error)), headers,
+                    HttpStatus.UNPROCESSABLE_CONTENT, request);
+        }
+        return super.handleHttpMessageNotReadable(exception, headers, status, request);
+    }
+
+    /** Creates a 422 problem with the given field errors as an {@code errors} property. */
+    private static ProblemDetail unprocessable(List<FieldErrorDto> errors) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_CONTENT,
+                "The request contains invalid data");
+        problem.setProperty("errors", errors.stream().sorted(BY_FIELD).toList());
+        return problem;
+    }
+
+    /** Builds the path to the failing field in the same form as validation errors, e.g. "alsoKnownAs[0].type". */
+    private static String fieldPath(JacksonException exception) {
+        StringBuilder path = new StringBuilder();
+        for (JacksonException.Reference reference : exception.getPath()) {
+            if (reference.getPropertyName() != null) {
+                if (!path.isEmpty()) {
+                    path.append('.');
+                }
+                path.append(reference.getPropertyName());
+            } else {
+                path.append('[').append(reference.getIndex()).append(']');
+            }
+        }
+        return path.toString();
     }
 }

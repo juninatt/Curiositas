@@ -50,4 +50,30 @@ public class PersonService {
     public Person get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new PersonNotFoundException(id));
     }
+
+    /**
+     * Saves a new person. The person is written immediately, so the returned person has its id,
+     * version and timestamps.
+     *
+     * @param person the new person, already validated
+     * @return the saved person
+     */
+    @Transactional
+    public Person create(Person person) {
+        return repository.saveAndFlush(person);
+    }
+
+    /**
+     * Deletes a person permanently.
+     *
+     * @param id the id of the person
+     * @throws PersonNotFoundException if no person has that id
+     */
+    @Transactional
+    public void delete(UUID id) {
+        if (!repository.existsById(id)) {
+            throw new PersonNotFoundException(id);
+        }
+        repository.deleteById(id);
+    }
 }
