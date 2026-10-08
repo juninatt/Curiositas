@@ -3,18 +3,22 @@ package se.pbt.curiositas.person;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import se.pbt.curiositas.security.SecurityConfig;
 
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static se.pbt.curiositas.person.StoredPersons.stored;
 
 /**
@@ -22,6 +26,8 @@ import static se.pbt.curiositas.person.StoredPersons.stored;
  * responses. The service is replaced by a mock, so these tests run without a database.
  */
 @WebMvcTest(PersonController.class)
+@Import(SecurityConfig.class)
+@TestPropertySource(properties = "curiositas.admin.password=test-password")
 class PersonControllerTest {
 
     private static final UUID ID = UUID.fromString("7f1c8a52-0d1e-4f4b-9a7e-3c2b1d0e9f8a");
@@ -123,6 +129,7 @@ class PersonControllerTest {
     @Test
     void answersNotImplementedForWrites() {
         assertThat(mvc.post().uri("/api/v1/persons")
+                .with(httpBasic("admin", "test-password"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\": \"Edward Teach\", \"gender\": \"MALE\"}"))
                 .hasStatus(HttpStatus.NOT_IMPLEMENTED)

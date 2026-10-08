@@ -17,6 +17,15 @@ tables, and the project doubles as a showcase of API design and API testing.
 Requirements: JDK 21 and Docker (Docker Desktop on Windows/macOS). Docker must be running both
 when starting the application and when running the tests.
 
+Anyone can read data, but writing requires the admin account (username `admin`). The application
+refuses to start without an admin password, which is given through an environment variable:
+
+```bash
+export CURIOSITAS_ADMIN_PASSWORD=choose-a-password
+```
+
+On Windows in PowerShell: `$env:CURIOSITAS_ADMIN_PASSWORD = "choose-a-password"`.
+
 ```bash
 ./mvnw spring-boot:run
 ```

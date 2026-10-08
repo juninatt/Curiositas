@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Import;
  * configuration errors early.
  */
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest
+@SpringBootTest(properties = "curiositas.admin.password=test-password")
 class CuriositasApplicationTests {
 
     /** Fails if the Spring context cannot start. */
