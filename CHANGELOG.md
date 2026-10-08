@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/juninatt/Curiositas/compare/v0.1.0...v0.2.0) (2026-10-08)
+
+
+### Features
+
+* **date:** derive display text for historical dates ([86949f0](https://github.com/juninatt/Curiositas/commit/86949f0e41b8b11d41610d9d9974d95115f30423))
+
 ## 0.1.0 (2026-10-08)
 
 
