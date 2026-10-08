@@ -1,6 +1,7 @@
 package se.pbt.curiositas.web;
 
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -15,6 +16,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import se.pbt.curiositas.api.model.FieldErrorDto;
 import se.pbt.curiositas.person.InvalidPersonException;
+import se.pbt.curiositas.person.PersonChangedException;
 import se.pbt.curiositas.person.PersonNotFoundException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.DatabindException;
@@ -45,6 +47,32 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler
     ProblemDetail handlePersonNotFound(PersonNotFoundException exception) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
+    /**
+     * Answers 412 Precondition Failed when a person was changed after the client read it, so the
+     * client can read again instead of overwriting the other change.
+     *
+     * @param exception the error naming the expected and current versions
+     * @return the problem description
+     */
+    @ExceptionHandler
+    ProblemDetail handlePersonChanged(PersonChangedException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.PRECONDITION_FAILED, exception.getMessage());
+    }
+
+    /**
+     * Answers 412 Precondition Failed when the database detects that another change was written
+     * between reading and writing a person. This is rare, but the result must be the same as when
+     * the version check before the write fails.
+     *
+     * @param exception the conflict reported by the database layer
+     * @return the problem description
+     */
+    @ExceptionHandler
+    ProblemDetail handleOptimisticLockingFailure(OptimisticLockingFailureException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.PRECONDITION_FAILED,
+                "The data was changed by someone else at the same time; read it again and retry");
     }
 
     /**

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * Reads and changes persons. Keeps transactions and business rules out of the web layer.
@@ -60,6 +61,28 @@ public class PersonService {
      */
     @Transactional
     public Person create(Person person) {
+        return repository.saveAndFlush(person);
+    }
+
+    /**
+     * Replaces a person's data, but only if nobody has changed the person since the client read
+     * it. The version is checked here, and again by the database when writing, which also catches
+     * a change made between those two moments.
+     *
+     * @param id              the id of the person
+     * @param expectedVersion the version the client read before making its change
+     * @param changes         applies the new data to the person; may reject it
+     * @return the updated person with its new version
+     * @throws PersonNotFoundException if no person has that id
+     * @throws PersonChangedException  if the person is no longer at the expected version
+     */
+    @Transactional
+    public Person replace(UUID id, long expectedVersion, Consumer<Person> changes) {
+        Person person = get(id);
+        if (person.getVersion() != expectedVersion) {
+            throw new PersonChangedException(expectedVersion, person.getVersion());
+        }
+        changes.accept(person);
         return repository.saveAndFlush(person);
     }
 

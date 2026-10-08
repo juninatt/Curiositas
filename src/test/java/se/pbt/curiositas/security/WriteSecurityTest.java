@@ -93,7 +93,8 @@ class WriteSecurityTest {
     /** The write operations in the contract, each with its method, path and answer for the admin. */
     enum WriteRequest {
         CREATE(HttpMethod.POST, "/api/v1/persons", HttpStatus.CREATED),
-        REPLACE(HttpMethod.PUT, PERSON, HttpStatus.NOT_IMPLEMENTED),
+        // No If-Match is sent, so getting 428 instead of 401 shows the request passed authentication.
+        REPLACE(HttpMethod.PUT, PERSON, HttpStatus.PRECONDITION_REQUIRED),
         DELETE(HttpMethod.DELETE, PERSON, HttpStatus.NO_CONTENT);
 
         private final HttpMethod method;

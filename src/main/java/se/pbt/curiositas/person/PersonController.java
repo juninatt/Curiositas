@@ -12,6 +12,8 @@ import se.pbt.curiositas.api.model.PersonPageDto;
 
 import java.net.URI;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Serves the person endpoints described in the OpenAPI contract. Paths, parameters and models
@@ -19,6 +21,12 @@ import java.util.UUID;
  */
 @RestController
 public class PersonController implements PersonsApi {
+
+    /**
+     * The only accepted form of {@code If-Match}: a strong ETag holding a version, such as "3".
+     * Weak ETags and "*" are rejected, since they cannot prove which version the client read.
+     */
+    private static final Pattern VERSION_ETAG = Pattern.compile("^\"(\\d{1,18})\"$");
 
     private final PersonService service;
 
@@ -42,7 +50,7 @@ public class PersonController implements PersonsApi {
     public ResponseEntity<PersonDto> getPerson(UUID id) {
         Person person = service.get(id);
         return ResponseEntity.ok()
-                .eTag(String.valueOf(person.getVersion()))
+                .eTag(eTag(person))
                 .body(PersonMapper.toDto(person));
     }
 
@@ -58,14 +66,21 @@ public class PersonController implements PersonsApi {
                 .buildAndExpand(person.getId())
                 .toUri();
         return ResponseEntity.created(location)
-                .eTag(String.valueOf(person.getVersion()))
+                .eTag(eTag(person))
                 .body(PersonMapper.toDto(person));
     }
 
-    /** Not implemented yet; answers 501 so clients get an honest response until it is. */
+    /**
+     * Replaces a person if {@code If-Match} names its current version, and answers with the new
+     * version as ETag. This keeps two clients from overwriting each other's changes.
+     */
     @Override
     public ResponseEntity<PersonDto> replacePerson(UUID id, PersonInputDto personInputDto, String ifMatch) {
-        throw notImplemented("Replacing persons");
+        long expectedVersion = versionFrom(ifMatch);
+        Person person = service.replace(id, expectedVersion, stored -> PersonMapper.copyInput(personInputDto, stored));
+        return ResponseEntity.ok()
+                .eTag(eTag(person))
+                .body(PersonMapper.toDto(person));
     }
 
     /** Deletes a person and answers 204, since there is nothing left to return. */
@@ -75,8 +90,25 @@ public class PersonController implements PersonsApi {
         return ResponseEntity.noContent().build();
     }
 
-    /** Creates the error for an operation that is described in the contract but not built yet. */
-    private static ResponseStatusException notImplemented(String operation) {
-        return new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, operation + " is not implemented yet");
+    /** Returns the person's version as ETag value; Spring adds the surrounding quotes. */
+    private static String eTag(Person person) {
+        return String.valueOf(person.getVersion());
+    }
+
+    /**
+     * Reads the version from {@code If-Match}. A missing header is answered with 428, since the
+     * client must prove which version it read; an unusable one with 412, since it cannot match.
+     */
+    private static long versionFrom(String ifMatch) {
+        if (ifMatch == null || ifMatch.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_REQUIRED,
+                    "If-Match is required; send the ETag from the latest read of the person");
+        }
+        Matcher matcher = VERSION_ETAG.matcher(ifMatch.trim());
+        if (!matcher.matches()) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                    "If-Match must be the ETag from a read of the person, such as \"3\"");
+        }
+        return Long.parseLong(matcher.group(1));
     }
 }

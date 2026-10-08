@@ -1,6 +1,8 @@
 package se.pbt.curiositas.person;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -15,10 +17,12 @@ import se.pbt.curiositas.security.SecurityConfig;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
@@ -211,6 +215,62 @@ class PersonControllerTest {
                 .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
+    /** Replaces a person when If-Match names the current version, and answers with the new version. */
+    @Test
+    void replacesPersonWhenVersionMatches() {
+        given(service.replace(eq(ID), eq(3L), any())).willAnswer(invocation -> {
+            Person person = stored(new Person("Edward Teach", Gender.MALE), ID, 3);
+            invocation.<Consumer<Person>>getArgument(2).accept(person);
+            return stored(person, ID, 4);
+        });
+
+        assertThat(put("\"3\"", """
+                { "name": "Edward Thatch", "gender": "MALE" }"""))
+                .hasStatusOk()
+                .hasHeader("ETag", "\"4\"")
+                .bodyJson()
+                .hasPathSatisfying("$.name", name -> assertThat(name).asString().isEqualTo("Edward Thatch"));
+    }
+
+    /** Answers 428 when If-Match is missing, since the client must show which version it read. */
+    @Test
+    void requiresIfMatchForReplace() {
+        assertThat(put(null, "{ \"name\": \"Edward Teach\", \"gender\": \"MALE\" }"))
+                .hasStatus(HttpStatus.PRECONDITION_REQUIRED)
+                .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+        then(service).shouldHaveNoInteractions();
+    }
+
+    /** Answers 412 when the person has been changed since the client read it. */
+    @Test
+    void rejectsReplaceOfChangedPerson() {
+        given(service.replace(eq(ID), eq(3L), any())).willThrow(new PersonChangedException(3, 4));
+
+        assertThat(put("\"3\"", "{ \"name\": \"Edward Teach\", \"gender\": \"MALE\" }"))
+                .hasStatus(HttpStatus.PRECONDITION_FAILED)
+                .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .bodyJson()
+                .hasPathSatisfying("$.detail", detail -> assertThat(detail).asString().contains("version 4"));
+    }
+
+    /** Answers 412 for If-Match values that cannot name a version, including weak ETags and "*". */
+    @ParameterizedTest
+    @ValueSource(strings = {"W/\"3\"", "*", "3", "\"three\""})
+    void rejectsUnusableIfMatch(String ifMatch) {
+        assertThat(put(ifMatch, "{ \"name\": \"Edward Teach\", \"gender\": \"MALE\" }"))
+                .hasStatus(HttpStatus.PRECONDITION_FAILED);
+        then(service).shouldHaveNoInteractions();
+    }
+
+    /** Answers 404 when replacing a person that does not exist. */
+    @Test
+    void answersNotFoundWhenReplacingUnknownPerson() {
+        given(service.replace(eq(ID), eq(0L), any())).willThrow(new PersonNotFoundException(ID));
+
+        assertThat(put("\"0\"", "{ \"name\": \"Edward Teach\", \"gender\": \"MALE\" }"))
+                .hasStatus(HttpStatus.NOT_FOUND);
+    }
+
     /** Deletes a person and answers 204 without a body. */
     @Test
     void deletesPerson() {
@@ -227,6 +287,15 @@ class PersonControllerTest {
         assertThat(mvc.delete().uri("/api/v1/persons/{id}", ID).with(httpBasic("admin", "test-password")))
                 .hasStatus(HttpStatus.NOT_FOUND)
                 .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    /** Sends a replacement as the admin, with the given If-Match header unless it is {@code null}. */
+    private MockMvcTester.MockMvcRequestBuilder put(String ifMatch, String json) {
+        MockMvcTester.MockMvcRequestBuilder request = mvc.put().uri("/api/v1/persons/{id}", ID)
+                .with(httpBasic("admin", "test-password"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json);
+        return ifMatch == null ? request : request.header("If-Match", ifMatch);
     }
 
     /** Sends a person as the admin. */
