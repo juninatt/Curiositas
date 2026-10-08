@@ -12,7 +12,7 @@
     <groupId>se.pbt</groupId>
     <artifactId>curiositas</artifactId>
     <!-- Managed by release-please, do not edit by hand. -->
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <name>curiositas</name>
     <description>A public database of curious history, from antiquity to modern times</description>
     <url>https://github.com/juninatt/Curiositas</url>
