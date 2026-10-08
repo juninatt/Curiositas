@@ -1,0 +1,186 @@
+<!doctype html>
+<!--
+  Development preview: a read-only table of the persons in the database, fed by the public API.
+  It shows that data flows from the database through the API. It will be replaced by a separate
+  frontend and is deliberately kept to one file without dependencies.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Curiositas Preview</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1f2328;
+      --muted: #656d76;
+      --border: #d0d7de;
+      --stripe: #f6f8fa;
+      --accent: #0969da;
+      --notice: #fff8c5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --text: #e6edf3;
+        --muted: #8d96a0;
+        --border: #30363d;
+        --stripe: #161b22;
+        --accent: #4493f8;
+        --notice: #3b2e00;
+      }
+    }
+    body {
+      margin: 0;
+      padding: 24px 16px;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1200px; margin: 0 auto; }
+    h1 { margin: 0 0 4px; font-size: 24px; }
+    a { color: var(--accent); }
+    .notice {
+      margin: 12px 0 20px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: var(--notice);
+      font-size: 14px;
+    }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+    th { font-size: 13px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+    tbody tr:nth-child(even) { background: var(--stripe); }
+    tbody tr:last-child td { border-bottom: none; }
+    .muted { color: var(--muted); }
+    .nowrap { white-space: nowrap; }
+    .pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+    button {
+      padding: 4px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--stripe);
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .error { color: #cf222e; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Curiositas</h1>
+  <div class="muted">Persons in the database</div>
+  <p class="notice">
+    Development preview, read-only. To add or change persons, use
+    <a href="/swagger-ui.html">Swagger UI</a>.
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+      <tr>
+        <th>Name</th>
+        <th>Also known as</th>
+        <th>Born</th>
+        <th>Died</th>
+        <th>Age at death</th>
+        <th>Birthplace</th>
+        <th>Birth country</th>
+        <th>Gender</th>
+        <th>Wikidata</th>
+      </tr>
+      </thead>
+      <tbody id="persons"></tbody>
+    </table>
+  </div>
+
+  <div class="pager">
+    <button id="previous" type="button">Previous</button>
+    <span id="status" class="muted"></span>
+    <button id="next" type="button">Next</button>
+  </div>
+</main>
+
+<script>
+  const PAGE_SIZE = 20;
+  let page = 0;
+
+  /** Creates a table cell whose content is plain text, so names can never be read as HTML. */
+  function cell(text, className) {
+    const td = document.createElement('td');
+    td.textContent = text ?? '–';
+    if (text == null) td.classList.add('muted');
+    if (className) td.classList.add(className);
+    return td;
+  }
+
+  /** Shows an age range as "38" when certain and "32–43" when not. */
+  function age(range) {
+    if (!range) return null;
+    return range.min === range.max ? String(range.min) : `${range.min}–${range.max}`;
+  }
+
+  /** Links the Wikidata id to its page, or shows a dash when there is none. */
+  function wikidataCell(id) {
+    if (!id) return cell(null);
+    const td = document.createElement('td');
+    const link = document.createElement('a');
+    link.href = `https://www.wikidata.org/wiki/${encodeURIComponent(id)}`;
+    link.textContent = id;
+    link.rel = 'noopener noreferrer';
+    td.append(link);
+    return td;
+  }
+
+  /** Builds one table row from a person as returned by the API. */
+  function row(person) {
+    const tr = document.createElement('tr');
+    tr.append(
+      cell(person.name),
+      cell(person.alsoKnownAs.map(alias => alias.name).join(', ') || null),
+      cell(person.birth?.display, 'nowrap'),
+      cell(person.death?.display, 'nowrap'),
+      cell(age(person.ageAtDeath)),
+      cell(person.birthPlace),
+      cell(person.birthCountry?.name),
+      cell(person.gender.charAt(0) + person.gender.slice(1).toLowerCase()),
+      wikidataCell(person.wikidataId)
+    );
+    return tr;
+  }
+
+  /** Loads one page of persons from the API and shows it. */
+  async function load() {
+    const body = document.getElementById('persons');
+    const status = document.getElementById('status');
+    try {
+      const response = await fetch(`/api/v1/persons?page=${page}&size=${PAGE_SIZE}`);
+      if (!response.ok) throw new Error(`The API answered ${response.status}`);
+      const data = await response.json();
+
+      body.replaceChildren(...data.content.map(row));
+      if (data.totalElements === 0) {
+        const empty = cell('No persons yet.');
+        empty.colSpan = 9;
+        body.replaceChildren(document.createElement('tr'));
+        body.firstChild.append(empty);
+      }
+      status.textContent = `Page ${data.page + 1} of ${Math.max(data.totalPages, 1)} · ${data.totalElements} persons`;
+      document.getElementById('previous').disabled = data.page === 0;
+      document.getElementById('next').disabled = data.page + 1 >= data.totalPages;
+    } catch (error) {
+      status.textContent = '';
+      status.className = 'error';
+      status.textContent = `Could not load persons: ${error.message}`;
+    }
+  }
+
+  document.getElementById('previous').addEventListener('click', () => { page--; load(); });
+  document.getElementById('next').addEventListener('click', () => { page++; load(); });
+  load();
+</script>
+</body>
+</html>
