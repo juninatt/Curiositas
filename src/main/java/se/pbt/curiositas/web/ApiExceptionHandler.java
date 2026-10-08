@@ -1,6 +1,7 @@
 package se.pbt.curiositas.web;
 
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import se.pbt.curiositas.api.model.FieldErrorDto;
+import se.pbt.curiositas.person.DuplicatePersonException;
 import se.pbt.curiositas.person.InvalidPersonException;
 import se.pbt.curiositas.person.PersonChangedException;
 import se.pbt.curiositas.person.PersonNotFoundException;
@@ -47,6 +49,32 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler
     ProblemDetail handlePersonNotFound(PersonNotFoundException exception) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
+    /**
+     * Answers 409 Conflict when a person is already in the database, naming the existing person
+     * so the client can update it instead.
+     *
+     * @param exception the error naming the existing person
+     * @return the problem description
+     */
+    @ExceptionHandler
+    ProblemDetail handleDuplicatePerson(DuplicatePersonException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
+    /**
+     * Answers 409 Conflict when the database rejects a write for clashing with stored data. All
+     * other rules are checked before writing, so this only happens when two clients store the
+     * same Wikidata id at the same moment and both pass the duplicate check.
+     *
+     * @param exception the rejection reported by the database layer; not revealed to the client
+     * @return the problem description
+     */
+    @ExceptionHandler
+    ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "The data conflicts with data stored at the same moment; read it again and retry");
     }
 
     /**

@@ -157,6 +157,19 @@ class PersonControllerTest {
                 .hasPathSatisfying("$.birthCountry.name", country -> assertThat(country).asString().isEqualTo("United Kingdom"));
     }
 
+    /** Answers 409 as Problem Details, naming the existing person, when the person is already stored. */
+    @Test
+    void rejectsDuplicatePerson() {
+        given(service.create(any())).willThrow(new DuplicatePersonException(ID, "Wikidata id Q213518"));
+
+        assertThat(post("""
+                { "name": "Edward Teach", "wikidataId": "Q213518", "gender": "MALE" }"""))
+                .hasStatus(HttpStatus.CONFLICT)
+                .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .bodyJson()
+                .hasPathSatisfying("$.detail", detail -> assertThat(detail).asString().contains(ID.toString()));
+    }
+
     /** Answers 422 with one field error per broken schema rule, so the client can fix all at once. */
     @Test
     void rejectsBodyThatBreaksTheSchema() {

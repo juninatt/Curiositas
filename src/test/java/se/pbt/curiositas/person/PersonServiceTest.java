@@ -75,6 +75,87 @@ class PersonServiceTest {
                 .isThrownBy(() -> service.replace(UUID.randomUUID(), 0, person -> person.setName("Nobody")));
     }
 
+    /** Rejects a second person with the same Wikidata id, whatever else differs. */
+    @Test
+    void rejectsSameWikidataId() {
+        Person caesar = new Person("Julius Caesar", Gender.MALE);
+        caesar.setWikidataId("Q1048");
+        Person existing = service.create(caesar);
+
+        Person copy = new Person("Gaius Julius Caesar", Gender.MALE);
+        copy.setWikidataId("Q1048");
+
+        assertThatExceptionOfType(DuplicatePersonException.class)
+                .isThrownBy(() -> service.create(copy))
+                .withMessageContaining(existing.getId().toString())
+                .withMessageContaining("Q1048");
+    }
+
+    /**
+     * Without Wikidata ids, rejects a person with the same name, written differently, and the
+     * same birth, death and birth country.
+     */
+    @Test
+    void rejectsSameNameAndLifeWithoutWikidataId() {
+        service.create(teach("Edward Teach", 1680));
+
+        assertThatExceptionOfType(DuplicatePersonException.class)
+                .isThrownBy(() -> service.create(teach("  edward   TEACH ", 1680)))
+                .withMessageContaining("same name, birth, death and birth country");
+    }
+
+    /** Treats persons with the same name but a different life as different persons. */
+    @Test
+    void allowsSameNameWithDifferentLife() {
+        service.create(teach("Edward Teach", 1680));
+
+        Person other = service.create(teach("Edward Teach", 1690));
+
+        assertThat(other.getId()).isNotNull();
+    }
+
+    /** Treats two persons with different Wikidata ids as different, even with the same name and life. */
+    @Test
+    void allowsSameNameAndLifeWithDifferentWikidataIds() {
+        Person first = teach("Edward Teach", 1680);
+        first.setWikidataId("Q1");
+        service.create(first);
+        Person second = teach("Edward Teach", 1680);
+        second.setWikidataId("Q2");
+
+        assertThat(service.create(second).getId()).isNotNull();
+    }
+
+    /** Lets a person be replaced without counting itself as its own duplicate. */
+    @Test
+    void doesNotCountPersonAsItsOwnDuplicate() {
+        Person created = service.create(teach("Edward Teach", 1680));
+
+        Person replaced = service.replace(created.getId(), 0, person -> person.setDeathPlace("Ocracoke Island"));
+
+        assertThat(replaced.getDeathPlace()).isEqualTo("Ocracoke Island");
+    }
+
+    /** Rejects a replacement that would turn a person into a duplicate of another, and keeps the old data. */
+    @Test
+    void rejectsReplaceThatCreatesDuplicate() {
+        service.create(teach("Edward Teach", 1680));
+        Person other = service.create(teach("Edward Teach", 1690));
+
+        assertThatExceptionOfType(DuplicatePersonException.class)
+                .isThrownBy(() -> service.replace(other.getId(), 0,
+                        person -> person.setBirth(new HistoricalDate(1680, null, null, 5))));
+        assertThat(reload(other.getId()).getBirth().year()).isEqualTo(1690);
+    }
+
+    /** Creates an Edward Teach born in the given year, give or take five years, and died in 1718. */
+    private static Person teach(String name, int birthYear) {
+        Person person = new Person(name, Gender.MALE);
+        person.setBirth(new HistoricalDate(birthYear, null, null, 5));
+        person.setDeath(new HistoricalDate(1718, 11, 22, 0));
+        return person;
+    }
+
     /** Reads the person from the database rather than from the persistence context. */
     private Person reload(UUID id) {
         entityManager.clear();

@@ -5,6 +5,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import se.pbt.curiositas.date.HistoricalDate;
 
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -58,9 +59,11 @@ public class PersonService {
      *
      * @param person the new person, already validated
      * @return the saved person
+     * @throws DuplicatePersonException if the person is already in the database
      */
     @Transactional
     public Person create(Person person) {
+        rejectDuplicate(person);
         return repository.saveAndFlush(person);
     }
 
@@ -73,8 +76,9 @@ public class PersonService {
      * @param expectedVersion the version the client read before making its change
      * @param changes         applies the new data to the person; may reject it
      * @return the updated person with its new version
-     * @throws PersonNotFoundException if no person has that id
-     * @throws PersonChangedException  if the person is no longer at the expected version
+     * @throws PersonNotFoundException  if no person has that id
+     * @throws PersonChangedException   if the person is no longer at the expected version
+     * @throws DuplicatePersonException if the changes would make the person a duplicate of another
      */
     @Transactional
     public Person replace(UUID id, long expectedVersion, Consumer<Person> changes) {
@@ -83,6 +87,7 @@ public class PersonService {
             throw new PersonChangedException(expectedVersion, person.getVersion());
         }
         changes.accept(person);
+        rejectDuplicate(person);
         return repository.saveAndFlush(person);
     }
 
@@ -98,5 +103,42 @@ public class PersonService {
             throw new PersonNotFoundException(id);
         }
         repository.deleteById(id);
+    }
+
+    /**
+     * Rejects a person that another person in the database already represents. A Wikidata id
+     * identifies a person on its own. Without one, the same name, birth, death and birth country
+     * count as the same person, since nothing else in the data could tell them apart.
+     */
+    private void rejectDuplicate(Person person) {
+        if (person.getWikidataId() != null) {
+            repository.findByWikidataId(person.getWikidataId())
+                    .filter(other -> !other.getId().equals(person.getId()))
+                    .ifPresent(other -> {
+                        throw new DuplicatePersonException(other.getId(), "Wikidata id " + person.getWikidataId());
+                    });
+            return;
+        }
+        HistoricalDate birth = person.getBirth();
+        HistoricalDate death = person.getDeath();
+        String name = PersonNames.normalize(person.getName());
+        repository.findWithSameLifeDatesAndBirthCountry(
+                        birth == null ? null : birth.year(),
+                        birth == null ? null : birth.month(),
+                        birth == null ? null : birth.day(),
+                        birth == null ? null : birth.uncertaintyYears(),
+                        death == null ? null : death.year(),
+                        death == null ? null : death.month(),
+                        death == null ? null : death.day(),
+                        death == null ? null : death.uncertaintyYears(),
+                        person.getBirthCountry())
+                .stream()
+                .filter(other -> !other.getId().equals(person.getId()))
+                .filter(other -> PersonNames.normalize(other.getName()).equals(name))
+                .findFirst()
+                .ifPresent(other -> {
+                    throw new DuplicatePersonException(other.getId(),
+                            "the same name, birth, death and birth country");
+                });
     }
 }
