@@ -15,6 +15,11 @@ package se.pbt.curiositas.date;
  */
 public record HistoricalDate(int year, Integer month, Integer day, int uncertaintyYears) {
 
+    /** English month abbreviations, fixed here so the display text never depends on the server locale. */
+    private static final String[] MONTH_NAMES = {
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    };
+
     /**
      * Rejects dates that cannot exist, so that invalid values never reach the database or the
      * calculations built on top of them.
@@ -40,6 +45,27 @@ public record HistoricalDate(int year, Integer month, Integer day, int uncertain
                         + " for month " + month + " of year " + year + ", but was " + day);
             }
         }
+    }
+
+    /**
+     * Returns the date as a human-readable text, for example "22 Nov 1718", "1680 ± 5" or
+     * "44 BC". It is derived on every call and never stored, so it always matches the data.
+     *
+     * @return the date with only the parts that are known, followed by the uncertainty if any
+     */
+    public String displayText() {
+        StringBuilder text = new StringBuilder();
+        if (day != null) {
+            text.append(day).append(' ');
+        }
+        if (month != null) {
+            text.append(MONTH_NAMES[month - 1]).append(' ');
+        }
+        text.append(year > 0 ? String.valueOf(year) : (1 - year) + " BC");
+        if (uncertaintyYears > 0) {
+            text.append(" ± ").append(uncertaintyYears);
+        }
+        return text.toString();
     }
 
     /**

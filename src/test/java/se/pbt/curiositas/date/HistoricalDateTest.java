@@ -5,6 +5,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
@@ -90,5 +91,27 @@ class HistoricalDateTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new HistoricalDate(1680, null, null, -5))
                 .withMessageContaining("Uncertainty");
+    }
+
+    /**
+     * Shows only the parts of a date that are known, converts astronomical years to BC, and
+     * shows the uncertainty as a number so readers can see how approximate the date is.
+     */
+    @ParameterizedTest(name = "{0}-{1}-{2} ± {3} -> \"{4}\"")
+    @CsvSource(nullValues = "null", value = {
+            "1718, 11,   22,   0, 22 Nov 1718",
+            "1718, 11,   null, 0, Nov 1718",
+            "1718, null, null, 0, 1718",
+            "1680, null, null, 5, 1680 ± 5",
+            "1,    1,    1,    0, 1 Jan 1",
+            "0,    null, null, 0, 1 BC",
+            "-43,  3,    15,   0, 15 Mar 44 BC",
+            "-43,  null, null, 2, 44 BC ± 2",
+    })
+    void displaysKnownPartsAndUncertainty(int year, Integer month, Integer day, int uncertaintyYears,
+                                          String expected) {
+        HistoricalDate date = new HistoricalDate(year, month, day, uncertaintyYears);
+
+        assertThat(date.displayText()).isEqualTo(expected);
     }
 }
