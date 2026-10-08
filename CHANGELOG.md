@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/juninatt/Curiositas/compare/v0.2.0...v0.3.0) (2026-10-08)
+
+
+### Features
+
+* **date:** calculate age range between birth and death ([b7f8f15](https://github.com/juninatt/Curiositas/commit/b7f8f151b229714b9cf7b6be1f2cd15f2d97f3d1))
+
 ## [0.2.0](https://github.com/juninatt/Curiositas/compare/v0.1.0...v0.2.0) (2026-10-08)
 
 
