@@ -8,12 +8,14 @@ import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Version;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import se.pbt.curiositas.date.HistoricalDate;
@@ -52,7 +54,9 @@ public class Person {
 
     private String name;
 
-    @ElementCollection
+    // Always needed with the person; loaded in batches so a page of persons costs one extra query.
+    @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 100)
     @CollectionTable(name = "person_alternative_name", joinColumns = @JoinColumn(name = "person_id"))
     @OrderColumn(name = "position")
     private List<AlternativeName> alsoKnownAs = new ArrayList<>();
