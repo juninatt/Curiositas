@@ -41,10 +41,9 @@ On Windows in PowerShell, use `.\mvnw.cmd` instead of `./mvnw`, for example
 
 ### Uncertain historical dates
 
-Exact dates are often unknown for historical people. A date is stored as the earliest and latest
-possible point in time, together with its precision (day, month, year, ...) and a qualifier
-(exact, circa, before, after, between). Sorting and filtering use these bounds, and ages are
-calculated as a range.
+Exact dates are often unknown for historical people. A date is stored as a year with an optional
+month and day, so it is never more precise than its source. An uncertainty in years expresses
+approximate dates, for example 1680 ± 5. Ages are calculated as a range.
 
 Years use astronomical numbering, where year 0 is 1 BC and year -43 is 44 BC.
 
