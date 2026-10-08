@@ -1,5 +1,7 @@
 package se.pbt.curiositas.date;
 
+import jakarta.persistence.Embeddable;
+
 /**
  * A date in history that is only as precise as its source. Month and day are optional, so a
  * person known to be born "in 1718" is never given an invented month or day, and an uncertainty
@@ -13,6 +15,7 @@ package se.pbt.curiositas.date;
  * @param day              the day of the month, or {@code null} if unknown; requires a month
  * @param uncertaintyYears how many years the date may be off in either direction; 0 when certain
  */
+@Embeddable
 public record HistoricalDate(int year, Integer month, Integer day, int uncertaintyYears) {
 
     /** English month abbreviations, fixed here so the display text never depends on the server locale. */
