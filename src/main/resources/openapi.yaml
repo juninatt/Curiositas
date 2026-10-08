@@ -1,0 +1,521 @@
+openapi: 3.0.3
+
+info:
+  title: Curiositas API
+  version: '1'
+  description: |
+    A public database of curious history, from antiquity to modern times. It starts with
+    historical people.
+
+    **Reading** is open to everyone. **Writing** (POST, PUT, DELETE) requires authentication.
+
+    **Errors** are returned as Problem Details (RFC 9457) with the media type
+    `application/problem+json`.
+
+    **Unknown values are left out** of responses instead of being returned as `null`.
+
+    **Dates** are only as precise as their source: a year, with an optional month and day, and an
+    uncertainty in years for approximate dates (for example 1680 ± 5). Years are astronomical:
+    year 0 is 1 BC and year -43 is 44 BC. Dates are stored as the source gives them, without
+    converting between the Julian and Gregorian calendars.
+
+    **Concurrent updates** are detected with ETags: every person is returned with an `ETag`
+    header, which must be sent back in `If-Match` when the person is replaced.
+
+servers:
+  - url: /api/v1
+
+tags:
+  - name: Persons
+    description: Historical people
+
+paths:
+  /persons:
+    get:
+      tags: [ Persons ]
+      operationId: listPersons
+      summary: List persons
+      description: Returns one page of persons, ordered by name.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: One page of persons
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [ Persons ]
+      operationId: createPerson
+      summary: Create a person
+      security:
+        - basicAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonInput'
+      responses:
+        '201':
+          description: The person was created
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+
+  /persons/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+    get:
+      tags: [ Persons ]
+      operationId: getPerson
+      summary: Get a person
+      responses:
+        '200':
+          description: The person
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [ Persons ]
+      operationId: replacePerson
+      summary: Replace a person
+      description: |
+        Replaces all fields of the person. The `If-Match` header must contain the ETag from the
+        latest read, so that changes made by someone else in the meantime are never overwritten.
+      security:
+        - basicAuth: [ ]
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonInput'
+      responses:
+        '200':
+          description: The person was replaced
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+    delete:
+      tags: [ Persons ]
+      operationId: deletePerson
+      summary: Delete a person
+      security:
+        - basicAuth: [ ]
+      responses:
+        '204':
+          description: The person was deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Required for all write operations.
+
+  parameters:
+    PersonId:
+      name: id
+      in: path
+      required: true
+      description: The id of the person
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      description: The page number, starting at 0
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      description: The number of persons per page
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+    IfMatch:
+      name: If-Match
+      in: header
+      # Not required here, so that a missing header gets the more precise 428 instead of 400.
+      required: false
+      description: The ETag from the latest read of the person. Required; without it the response is 428.
+      schema:
+        type: string
+      example: '"3"'
+
+  headers:
+    ETag:
+      description: The current version of the person, to send back in `If-Match`
+      schema:
+        type: string
+      example: '"3"'
+    Location:
+      description: The URL of the created person
+      schema:
+        type: string
+        format: uri
+
+  responses:
+    BadRequest:
+      description: The request could not be read, for example malformed JSON or an invalid parameter
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Authentication is missing or wrong
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: No person with that id exists
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: |
+        Another person is already registered with the same Wikidata id, or, when there is no
+        Wikidata id, with the same name, birth, death and birth country
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionFailed:
+      description: The person has been changed since it was read; read it again and retry
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableContent:
+      description: |
+        The request was understood but describes something impossible, for example a date that
+        does not exist or a death that can only have happened before the birth
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionRequired:
+      description: The `If-Match` header is missing
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    PersonInput:
+      type: object
+      description: A person as sent by the client. Derived values are never sent; the server calculates them.
+      required: [ name, gender ]
+      properties:
+        wikidataId:
+          type: string
+          description: The person's item id in Wikidata. Unique among all persons.
+          pattern: '^Q[1-9][0-9]*$'
+          example: Q7259
+        name:
+          type: string
+          description: The name the person is most commonly known by
+          minLength: 1
+          maxLength: 200
+          example: Edward Teach
+        alsoKnownAs:
+          type: array
+          description: Other names of the person
+          items:
+            $ref: '#/components/schemas/AlternativeName'
+        birth:
+          $ref: '#/components/schemas/HistoricalDateInput'
+        death:
+          $ref: '#/components/schemas/HistoricalDateInput'
+        floruit:
+          $ref: '#/components/schemas/HistoricalDateInput'
+        birthPlace:
+          type: string
+          maxLength: 200
+          example: Bristol
+        deathPlace:
+          type: string
+          maxLength: 200
+          example: Ocracoke Island
+        birthCountry:
+          type: string
+          description: The modern country of birth, as an ISO 3166-1 alpha-2 code
+          pattern: '^[A-Z]{2}$'
+          example: GB
+        gender:
+          $ref: '#/components/schemas/Gender'
+
+    Person:
+      type: object
+      description: A person as returned by the server, including derived values.
+      required: [ id, name, alsoKnownAs, gender, createdAt, updatedAt ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        wikidataId:
+          type: string
+          example: Q7259
+        name:
+          type: string
+          example: Edward Teach
+        alsoKnownAs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlternativeName'
+        birth:
+          $ref: '#/components/schemas/HistoricalDate'
+        death:
+          $ref: '#/components/schemas/HistoricalDate'
+        floruit:
+          $ref: '#/components/schemas/HistoricalDate'
+        ageAtDeath:
+          $ref: '#/components/schemas/AgeRange'
+        birthPlace:
+          type: string
+          example: Bristol
+        deathPlace:
+          type: string
+          example: Ocracoke Island
+        birthCountry:
+          $ref: '#/components/schemas/Country'
+        gender:
+          $ref: '#/components/schemas/Gender'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PersonPage:
+      type: object
+      description: One page of persons
+      required: [ content, page, size, totalElements, totalPages ]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Person'
+        page:
+          type: integer
+          format: int32
+          description: The page number, starting at 0
+        size:
+          type: integer
+          format: int32
+          description: The requested number of persons per page
+        totalElements:
+          type: integer
+          format: int64
+          description: The number of persons on all pages
+        totalPages:
+          type: integer
+          format: int32
+
+    HistoricalDateInput:
+      type: object
+      description: |
+        A date that is only as precise as its source. A day requires a month, and the day must
+        exist in that month; 29 February is accepted in every year divisible by four, since older
+        sources often use the Julian calendar. Impossible dates are rejected with 422.
+      required: [ year ]
+      properties:
+        year:
+          type: integer
+          format: int32
+          description: The astronomical year; 0 is 1 BC and -43 is 44 BC
+          example: 1680
+        month:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 12
+        day:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 31
+        uncertaintyYears:
+          type: integer
+          format: int32
+          description: How many years the date may be off in either direction
+          minimum: 0
+          default: 0
+          example: 5
+
+    HistoricalDate:
+      type: object
+      description: A date as returned by the server, including a derived display text.
+      required: [ year, uncertaintyYears, display ]
+      properties:
+        year:
+          type: integer
+          format: int32
+          example: 1680
+        month:
+          type: integer
+          format: int32
+        day:
+          type: integer
+          format: int32
+        uncertaintyYears:
+          type: integer
+          format: int32
+          example: 5
+        display:
+          type: string
+          description: The date as text, showing only the known parts
+          example: 1680 ± 5
+
+    AgeRange:
+      type: object
+      description: |
+        The youngest and oldest age the person can have reached, in completed years. Left out
+        when birth or death is unknown.
+      required: [ min, max ]
+      properties:
+        min:
+          type: integer
+          format: int32
+          minimum: 0
+          example: 32
+        max:
+          type: integer
+          format: int32
+          minimum: 0
+          example: 43
+
+    Country:
+      type: object
+      description: A modern country
+      required: [ code, name ]
+      properties:
+        code:
+          type: string
+          description: ISO 3166-1 alpha-2 code
+          example: GB
+        name:
+          type: string
+          example: United Kingdom
+
+    AlternativeName:
+      type: object
+      required: [ name, type ]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Blackbeard
+        type:
+          $ref: '#/components/schemas/NameType'
+
+    NameType:
+      type: string
+      enum: [ NICKNAME, PEN_NAME, REGNAL_NAME, BIRTH_NAME, SPELLING_VARIANT ]
+
+    Gender:
+      type: string
+      enum: [ FEMALE, MALE, OTHER, UNKNOWN ]
+
+    Problem:
+      type: object
+      description: An error as Problem Details (RFC 9457)
+      properties:
+        type:
+          type: string
+          format: uri
+          default: about:blank
+        title:
+          type: string
+          example: Unprocessable Content
+        status:
+          type: integer
+          format: int32
+          example: 422
+        detail:
+          type: string
+          example: Death (1700) cannot be before birth (1718)
+        instance:
+          type: string
+          format: uri
+        errors:
+          type: array
+          description: The fields that failed validation, when there are any
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      required: [ field, message ]
+      properties:
+        field:
+          type: string
+          example: birth.month
+        message:
+          type: string
+          example: must be between 1 and 12
