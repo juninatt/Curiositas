@@ -9,7 +9,8 @@ tables, and the project doubles as a showcase of API design and API testing.
 - Java 21, Spring Boot 4.1, Spring Data JPA
 - PostgreSQL 18 with Flyway migrations
 - Contract-first REST API (OpenAPI), errors as RFC 9457 Problem Details
-- Tests: JUnit 5, AssertJ, Testcontainers, REST Assured, contract validation against the OpenAPI spec
+- Tests: JUnit 5, AssertJ, Testcontainers
+- Planned: REST Assured, contract validation against the OpenAPI spec
 
 ## Getting started
 
@@ -26,6 +27,9 @@ Run all tests (Docker must be running, the tests use a real PostgreSQL container
 ```bash
 ./mvnw verify
 ```
+
+On Windows in PowerShell, use `.\mvnw.cmd` instead of `./mvnw`, for example
+`.\mvnw.cmd spring-boot:run`.
 
 ## Design principles
 

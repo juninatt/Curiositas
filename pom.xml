@@ -15,7 +15,7 @@
     <!-- Managed by release-please, do not edit by hand. -->
     <version>0.0.0</version>
     <name>curiositas</name>
-    <description>A public database of curious historical people, events and places</description>
+    <description>A public database of curious history, from antiquity to modern times</description>
     <url>https://github.com/juninatt/Curiositas</url>
 
     <properties>
