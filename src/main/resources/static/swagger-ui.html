@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- Swagger UI for the hand-written OpenAPI contract, served by the application itself. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Curiositas API</title>
+  <link rel="stylesheet" href="/webjars/swagger-ui/swagger-ui.css">
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="/webjars/swagger-ui/swagger-ui-bundle.js"></script>
+<script>
+  window.ui = SwaggerUIBundle({
+    url: '/openapi.yaml',
+    dom_id: '#swagger-ui',
+    // Never send the contract to the public validator service.
+    validatorUrl: null
+  });
+</script>
+</body>
+</html>
