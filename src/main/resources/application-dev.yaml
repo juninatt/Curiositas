@@ -1,0 +1,5 @@
+# Profile for local development, active when the application runs with ./mvnw spring-boot:run.
+curiositas:
+  data:
+    # Write data/persons with every change, so the files are always ready to be committed.
+    sync: true

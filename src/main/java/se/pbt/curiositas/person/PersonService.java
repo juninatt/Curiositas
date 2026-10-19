@@ -1,5 +1,6 @@
 package se.pbt.curiositas.person;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -22,14 +23,17 @@ public class PersonService {
     private static final Sort BY_NAME = Sort.by("name").and(Sort.by("id"));
 
     private final PersonRepository repository;
+    private final ApplicationEventPublisher events;
 
     /**
      * Creates the service.
      *
      * @param repository where persons are stored
+     * @param events     announces changes, so the data files can follow them
      */
-    public PersonService(PersonRepository repository) {
+    public PersonService(PersonRepository repository, ApplicationEventPublisher events) {
         this.repository = repository;
+        this.events = events;
     }
 
     /**
@@ -74,7 +78,9 @@ public class PersonService {
     @Transactional
     public Person create(Person person) {
         rejectDuplicate(person);
-        return repository.saveAndFlush(person);
+        Person created = repository.saveAndFlush(person);
+        events.publishEvent(new PersonsChangedEvent());
+        return created;
     }
 
     /**
@@ -98,7 +104,9 @@ public class PersonService {
         }
         changes.accept(person);
         rejectDuplicate(person);
-        return repository.saveAndFlush(person);
+        Person replaced = repository.saveAndFlush(person);
+        events.publishEvent(new PersonsChangedEvent());
+        return replaced;
     }
 
     /**
@@ -113,6 +121,7 @@ public class PersonService {
             throw new PersonNotFoundException(id);
         }
         repository.deleteById(id);
+        events.publishEvent(new PersonsChangedEvent());
     }
 
     /**
