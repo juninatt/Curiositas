@@ -3,7 +3,7 @@
 # Docker must be running. The command runs without a web server and needs no admin password.
 if [ -z "$1" ]; then
     echo "Usage: ./data.sh <command>"
-    echo "Commands: export"
+    echo "Commands: export, import"
     exit 1
 fi
 cd "$(dirname "$0")" || exit 1

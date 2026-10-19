@@ -44,7 +44,7 @@ public final class PersonMapper {
      * @return the new, not yet saved person
      * @throws InvalidPersonException if the data is impossible, listing every problem found
      */
-    static Person toNewPerson(PersonInputDto input) {
+    public static Person toNewPerson(PersonInputDto input) {
         Person person = new Person(input.getName(), Gender.valueOf(input.getGender().name()));
         copyInput(input, person);
         return person;
@@ -58,7 +58,7 @@ public final class PersonMapper {
      * @param person the person to update
      * @throws InvalidPersonException if the data is impossible, listing every problem found
      */
-    static void copyInput(PersonInputDto input, Person person) {
+    public static void copyInput(PersonInputDto input, Person person) {
         List<Violation> violations = new ArrayList<>();
         HistoricalDate birth = toDate("birth", input.getBirth(), violations);
         HistoricalDate death = toDate("death", input.getDeath(), violations);

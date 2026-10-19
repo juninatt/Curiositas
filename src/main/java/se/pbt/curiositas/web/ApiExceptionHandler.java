@@ -20,7 +20,7 @@ import se.pbt.curiositas.person.DuplicatePersonException;
 import se.pbt.curiositas.person.InvalidPersonException;
 import se.pbt.curiositas.person.PersonChangedException;
 import se.pbt.curiositas.person.PersonNotFoundException;
-import tools.jackson.core.JacksonException;
+import se.pbt.curiositas.json.JsonFieldPath;
 import tools.jackson.databind.DatabindException;
 
 import java.util.Comparator;
@@ -170,7 +170,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleHttpMessageNotReadable(
             HttpMessageNotReadableException exception, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         if (exception.getCause() instanceof DatabindException invalidValue) {
-            FieldErrorDto error = new FieldErrorDto(fieldPath(invalidValue),
+            FieldErrorDto error = new FieldErrorDto(JsonFieldPath.of(invalidValue),
                     "has a value of the wrong type or outside the allowed values");
             return handleExceptionInternal(exception, unprocessable(List.of(error)), headers,
                     HttpStatus.UNPROCESSABLE_CONTENT, request);
@@ -184,21 +184,5 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 "The request contains invalid data");
         problem.setProperty("errors", errors.stream().sorted(BY_FIELD).toList());
         return problem;
-    }
-
-    /** Builds the path to the failing field in the same form as validation errors, e.g. "alsoKnownAs[0].type". */
-    private static String fieldPath(JacksonException exception) {
-        StringBuilder path = new StringBuilder();
-        for (JacksonException.Reference reference : exception.getPath()) {
-            if (reference.getPropertyName() != null) {
-                if (!path.isEmpty()) {
-                    path.append('.');
-                }
-                path.append(reference.getPropertyName());
-            } else {
-                path.append('[').append(reference.getIndex()).append(']');
-            }
-        }
-        return path.toString();
     }
 }

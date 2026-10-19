@@ -5,9 +5,11 @@ import se.pbt.curiositas.api.model.AlternativeNameDto;
 import se.pbt.curiositas.api.model.HistoricalDateInputDto;
 import se.pbt.curiositas.api.model.PersonInputDto;
 import se.pbt.curiositas.person.PersonNames;
+import tools.jackson.core.JacksonException;
 import tools.jackson.core.util.DefaultIndenter;
 import tools.jackson.core.util.DefaultPrettyPrinter;
 import tools.jackson.core.util.Separators;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -32,6 +34,8 @@ final class PersonFileFormat {
             .addMixIn(HistoricalDateInputDto.class, DateOrder.class)
             .addMixIn(AlternativeNameDto.class, NameOrder.class)
             .enable(SerializationFeature.INDENT_OUTPUT)
+            // A misspelled field, such as "birthplace", must be reported instead of silently dropped.
+            .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .defaultPrettyPrinter(new DefaultPrettyPrinter(Separators.createDefaultInstance()
                     .withObjectNameValueSpacing(Separators.Spacing.AFTER))
                     .withObjectIndenter(INDENTER)
@@ -50,6 +54,18 @@ final class PersonFileFormat {
      */
     static String toJson(PersonInputDto person) {
         return JSON.writeValueAsString(person) + "\n";
+    }
+
+    /**
+     * Reads a person from the content of its file.
+     *
+     * @param json the file content
+     * @return the person in request format, not yet validated
+     * @throws JacksonException if the content is not valid JSON, has an unknown field or a value
+     *                          of the wrong type
+     */
+    static PersonInputDto fromJson(String json) {
+        return JSON.readValue(json, PersonInputDto.class);
     }
 
     /**

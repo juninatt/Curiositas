@@ -12,9 +12,10 @@ import se.pbt.curiositas.person.PersonService;
 import java.io.PrintStream;
 
 /**
- * Runs one data command, such as {@code export}, and then stops the application. Started through
- * {@code data.cmd} or {@code data.sh}, which set {@code curiositas.data.command}; the application
- * then runs without a web server, so commands work even when the server could not start.
+ * Runs one data command, such as {@code export} or {@code import}, and then stops the
+ * application. Started through {@code data.cmd} or {@code data.sh}, which set
+ * {@code curiositas.data.command}; the application then runs without a web server, so commands
+ * work even when the server could not start.
  */
 @Component
 @ConditionalOnProperty("curiositas.data.command")
@@ -23,6 +24,7 @@ public class DataCommandRunner implements ApplicationRunner {
     private final DataProperties properties;
     private final PersonService persons;
     private final PersonExporter exporter;
+    private final PersonImporter importer;
     private final ConfigurableApplicationContext context;
     private final String command;
     private final PrintStream out;
@@ -33,15 +35,17 @@ public class DataCommandRunner implements ApplicationRunner {
      * @param properties where the data files live
      * @param persons    reads the persons to export
      * @param exporter   writes the files
+     * @param importer   makes the database match the files
      * @param context    the application, stopped when the command is done
      * @param command    the command to run, from {@code curiositas.data.command}
      */
     public DataCommandRunner(DataProperties properties, PersonService persons, PersonExporter exporter,
-                             ConfigurableApplicationContext context,
+                             PersonImporter importer, ConfigurableApplicationContext context,
                              @Value("${curiositas.data.command}") String command) {
         this.properties = properties;
         this.persons = persons;
         this.exporter = exporter;
+        this.importer = importer;
         this.context = context;
         this.command = command.strip();
         this.out = System.out;
@@ -57,11 +61,17 @@ public class DataCommandRunner implements ApplicationRunner {
         try {
             exitCode = switch (command) {
                 case "export" -> export();
+                case "import" -> importFiles();
                 default -> {
-                    out.println("Unknown data command '" + command + "'. Available commands: export");
+                    out.println("Unknown data command '" + command + "'. Available commands: export, import");
                     yield 1;
                 }
             };
+        } catch (InvalidDataFilesException invalid) {
+            out.println("Nothing was imported, since these files have problems:");
+            out.println(invalid.getMessage());
+            out.println("Fix the files and run the import again.");
+            exitCode = 1;
         } catch (RuntimeException failure) {
             out.println("The data command '" + command + "' failed: " + failure.getMessage());
             exitCode = 1;
@@ -75,6 +85,14 @@ public class DataCommandRunner implements ApplicationRunner {
         PersonExporter.Result result = exporter.export(persons.listAll(), properties.personsDirectory());
         out.printf("Exported persons to %s: %d written, %d unchanged, %d removed.%n",
                 properties.personsDirectory(), result.written(), result.unchanged(), result.removed());
+        return 0;
+    }
+
+    /** Makes the database match the data folder. */
+    private int importFiles() {
+        PersonImporter.Result result = importer.importFrom(properties.personsDirectory());
+        out.printf("Imported persons from %s: %d created, %d updated, %d unchanged, %d deleted.%n",
+                properties.personsDirectory(), result.created(), result.updated(), result.unchanged(), result.deleted());
         return 0;
     }
 }
