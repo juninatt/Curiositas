@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import se.pbt.curiositas.date.HistoricalDate;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -40,6 +41,15 @@ public class PersonService {
      */
     public Page<Person> list(int page, int size) {
         return repository.findAll(PageRequest.of(page, size, BY_NAME));
+    }
+
+    /**
+     * Returns every person, for exporting them all at once.
+     *
+     * @return all persons, ordered by name
+     */
+    public List<Person> listAll() {
+        return repository.findAll(BY_NAME);
     }
 
     /**

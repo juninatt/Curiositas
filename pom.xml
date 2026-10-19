@@ -162,6 +162,8 @@
                             <generateApiDocumentation>false</generateApiDocumentation>
                             <generateModelDocumentation>false</generateModelDocumentation>
                             <generateSupportingFiles>false</generateSupportingFiles>
+                            <!-- Regenerates only when the contract changes, which keeps builds and data commands quiet -->
+                            <skipIfSpecIsUnchanged>true</skipIfSpecIsUnchanged>
                             <configOptions>
                                 <useSpringBoot4>true</useSpringBoot4>
                                 <!-- Only interfaces; the controllers are written by hand -->

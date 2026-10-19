@@ -1,6 +1,7 @@
 package se.pbt.curiositas.security;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,8 +21,12 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 /**
  * Keeps the database open for reading and closed for writing. Anyone may read; creating,
  * replacing and deleting require the admin account through HTTP Basic authentication.
+ *
+ * <p>Only active when the application serves HTTP. Data commands run without a web server, so
+ * they need no admin password.
  */
 @Configuration
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableConfigurationProperties(AdminProperties.class)
 public class SecurityConfig {
 

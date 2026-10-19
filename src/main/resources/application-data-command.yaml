@@ -1,0 +1,14 @@
+# Profile for data commands (see data.cmd and data.sh): the application runs one command against
+# the database and exits, so it serves no HTTP and prints only the command's own output.
+spring:
+  main:
+    web-application-type: none
+    banner-mode: off
+  docker:
+    compose:
+      # Leave the database running afterwards; the application may be using it at the same time.
+      lifecycle-management: start-only
+
+logging:
+  level:
+    root: warn

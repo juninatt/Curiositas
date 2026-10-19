@@ -28,7 +28,7 @@ import java.util.Set;
  * the contract's schema cannot express; outgoing data gets its derived values, such as display
  * texts, age at death and country names, which are never stored.
  */
-final class PersonMapper {
+public final class PersonMapper {
 
     /** The ISO 3166-1 alpha-2 codes of current countries. */
     private static final Set<String> COUNTRY_CODES = Set.of(Locale.getISOCountries());
@@ -82,7 +82,8 @@ final class PersonMapper {
         person.setName(input.getName());
         person.setGender(Gender.valueOf(input.getGender().name()));
         person.setWikidataId(input.getWikidataId());
-        person.setAlsoKnownAs(input.getAlsoKnownAs().stream()
+        List<AlternativeNameDto> alsoKnownAs = input.getAlsoKnownAs() != null ? input.getAlsoKnownAs() : List.of();
+        person.setAlsoKnownAs(alsoKnownAs.stream()
                 .map(name -> new AlternativeName(name.getName(), NameType.valueOf(name.getType().name())))
                 .toList());
         person.setBirth(birth);
@@ -91,6 +92,40 @@ final class PersonMapper {
         person.setBirthPlace(input.getBirthPlace());
         person.setDeathPlace(input.getDeathPlace());
         person.setBirthCountry(birthCountry);
+    }
+
+    /**
+     * Converts a stored person back to the request format, which is also the format of the data
+     * files. Empty lists and an uncertainty of 0 are left out, since they are what the request
+     * format assumes when nothing is given, and the files stay shorter without them.
+     *
+     * @param person the stored person
+     * @return the person as a client would send it
+     */
+    public static PersonInputDto toInput(Person person) {
+        List<AlternativeNameDto> alsoKnownAs = person.getAlsoKnownAs().stream()
+                .map(PersonMapper::toDto)
+                .toList();
+        return new PersonInputDto(person.getName(), GenderDto.valueOf(person.getGender().name()))
+                .wikidataId(person.getWikidataId())
+                .alsoKnownAs(alsoKnownAs.isEmpty() ? null : alsoKnownAs)
+                .birth(toInput(person.getBirth()))
+                .death(toInput(person.getDeath()))
+                .floruit(toInput(person.getFloruit()))
+                .birthPlace(person.getBirthPlace())
+                .deathPlace(person.getDeathPlace())
+                .birthCountry(person.getBirthCountry());
+    }
+
+    /** Converts a date to the request format, or returns {@code null} if the date is unknown. */
+    private static HistoricalDateInputDto toInput(HistoricalDate date) {
+        if (date == null) {
+            return null;
+        }
+        return new HistoricalDateInputDto(date.year())
+                .month(date.month())
+                .day(date.day())
+                .uncertaintyYears(date.uncertaintyYears() == 0 ? null : date.uncertaintyYears());
     }
 
     /**
