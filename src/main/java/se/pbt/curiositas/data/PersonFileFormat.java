@@ -10,6 +10,7 @@ import tools.jackson.core.util.DefaultIndenter;
 import tools.jackson.core.util.DefaultPrettyPrinter;
 import tools.jackson.core.util.Separators;
 import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -66,6 +67,17 @@ final class PersonFileFormat {
      */
     static PersonInputDto fromJson(String json) {
         return JSON.readValue(json, PersonInputDto.class);
+    }
+
+    /**
+     * Reads a file as a plain JSON tree, for comparing it field by field with what it should hold.
+     *
+     * @param json the file content
+     * @return the JSON tree
+     * @throws JacksonException if the content is not valid JSON
+     */
+    static JsonNode toTree(String json) {
+        return JSON.readTree(json);
     }
 
     /**

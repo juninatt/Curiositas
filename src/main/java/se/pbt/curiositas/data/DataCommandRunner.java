@@ -12,8 +12,8 @@ import se.pbt.curiositas.person.PersonService;
 import java.io.PrintStream;
 
 /**
- * Runs one data command, such as {@code export} or {@code import}, and then stops the
- * application. Started through {@code data.cmd} or {@code data.sh}, which set
+ * Runs one data command, such as {@code export}, {@code import} or {@code check}, and then
+ * stops the application. Started through {@code data.cmd} or {@code data.sh}, which set
  * {@code curiositas.data.command}; the application then runs without a web server, so commands
  * work even when the server could not start.
  */
@@ -62,8 +62,9 @@ public class DataCommandRunner implements ApplicationRunner {
             exitCode = switch (command) {
                 case "export" -> export();
                 case "import" -> importFiles();
+                case "check" -> check();
                 default -> {
-                    out.println("Unknown data command '" + command + "'. Available commands: export, import");
+                    out.println("Unknown data command '" + command + "'. Available commands: export, import, check");
                     yield 1;
                 }
             };
@@ -86,6 +87,20 @@ public class DataCommandRunner implements ApplicationRunner {
         out.printf("Exported persons to %s: %d written, %d unchanged, %d removed.%n",
                 properties.personsDirectory(), result.written(), result.unchanged(), result.removed());
         return 0;
+    }
+
+    /** Reports whether the database matches the data folder, without changing either. */
+    private int check() {
+        DataDifferences differences = PersonDataChecker.compare(persons.listAll(), properties.personsDirectory());
+        if (differences.isEmpty()) {
+            out.println("The database matches the data files in " + properties.personsDirectory() + ".");
+            return 0;
+        }
+        out.println("The database does not match the data files:");
+        out.println(differences.describe());
+        out.println();
+        out.println(DataDifferences.HOW_TO_FIX);
+        return 1;
     }
 
     /** Makes the database match the data folder. */
