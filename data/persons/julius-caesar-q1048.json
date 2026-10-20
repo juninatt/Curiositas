@@ -1,0 +1,23 @@
+{
+  "name": "Julius Caesar",
+  "wikidataId": "Q1048",
+  "alsoKnownAs": [
+    {
+      "name": "Gaius Julius Caesar",
+      "type": "BIRTH_NAME"
+    }
+  ],
+  "birth": {
+    "year": -99,
+    "month": 7
+  },
+  "birthPlace": "Rome",
+  "birthCountry": "IT",
+  "death": {
+    "year": -43,
+    "month": 3,
+    "day": 15
+  },
+  "deathPlace": "Theatre of Pompey, Rome",
+  "gender": "MALE"
+}

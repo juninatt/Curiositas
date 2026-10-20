@@ -1,0 +1,23 @@
+{
+  "name": "Edward Teach",
+  "wikidataId": "Q213518",
+  "alsoKnownAs": [
+    {
+      "name": "Blackbeard",
+      "type": "NICKNAME"
+    }
+  ],
+  "birth": {
+    "year": 1680,
+    "uncertaintyYears": 5
+  },
+  "birthPlace": "probably Bristol",
+  "birthCountry": "GB",
+  "death": {
+    "year": 1718,
+    "month": 11,
+    "day": 22
+  },
+  "deathPlace": "Ocracoke Island",
+  "gender": "MALE"
+}

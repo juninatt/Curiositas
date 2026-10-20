@@ -1,0 +1,11 @@
+{
+  "name": "Anne Bonny",
+  "wikidataId": "Q231549",
+  "birth": {
+    "year": 1697,
+    "uncertaintyYears": 3
+  },
+  "birthPlace": "probably Kinsale",
+  "birthCountry": "IE",
+  "gender": "FEMALE"
+}
