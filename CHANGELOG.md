@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0](https://github.com/juninatt/Curiositas/compare/v0.4.0...v0.5.0) (2026-10-20)
+
+
+### Features
+
+* **data:** export all persons as json files ([e60931f](https://github.com/juninatt/Curiositas/commit/e60931f530475c3f57b2c5c56d2e0e084c4db8cb))
+* **data:** rebuild the database from json files ([38409ff](https://github.com/juninatt/Curiositas/commit/38409ff55e51f9e8b453ee481072a4c7053d0dcc))
+* **data:** refuse to start when the database and the files differ ([ebe2840](https://github.com/juninatt/Curiositas/commit/ebe28402563c53b212a7bf3a172eeb20937b383f))
+* **data:** write the json files with every change ([2c300f8](https://github.com/juninatt/Curiositas/commit/2c300f8a474ba55b32142ef55dfe6c7af0e6dc72))
+* **person:** reject duplicate persons with 409 ([3f83c06](https://github.com/juninatt/Curiositas/commit/3f83c0621f6bdee4d482bf251ef691445874dbfc))
+
 ## [0.4.0](https://github.com/juninatt/Curiositas/compare/v0.3.0...v0.4.0) (2026-10-08)
 
 
