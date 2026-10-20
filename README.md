@@ -30,7 +30,9 @@ On Windows in PowerShell: `$env:CURIOSITAS_ADMIN_PASSWORD = "choose-a-password"`
 ./mvnw spring-boot:run
 ```
 
-The application starts the PostgreSQL container in `compose.yaml` automatically. Then open:
+The application starts the PostgreSQL container in `compose.yaml` automatically, runs with the
+`dev` profile and first checks that the database matches the files in `data/` (see
+[Data](#data)). When starting it from an IDE instead, set the active profile to `dev`. Then open:
 
 | URL | What it shows |
 |---|---|
@@ -84,6 +86,44 @@ The response adds derived values that are calculated on every request and never 
 | 422 | Readable but invalid data, such as 31 April or a death before the birth, with one error per field |
 | 428 | `If-Match` is missing when replacing a person |
 
+## Data
+
+The JSON files in [`data/persons/`](data/persons) are the source of truth, one file per person,
+in the same format as the request that creates a person. The database is a working copy that
+mirrors them, so data never depends on a single database and every change shows up in git.
+
+```json
+{
+  "name": "Edward Teach",
+  "wikidataId": "Q213518",
+  "alsoKnownAs": [{ "name": "Blackbeard", "type": "NICKNAME" }],
+  "birth": { "year": 1680, "uncertaintyYears": 5 },
+  "death": { "year": 1718, "month": 11, "day": 22 },
+  "gender": "MALE"
+}
+```
+
+When running locally, every change made through the API is written to its file before it is
+committed to the database; if the file cannot be written, the change is rolled back. Committing
+`data/` makes the change permanent.
+
+The application refuses to start when the database and the files differ, and lists every
+difference by file and field. The data commands fix that, and work even when the application
+does not start:
+
+| Command | What it does |
+|---|---|
+| `./data.sh check` | Lists the differences without changing anything |
+| `./data.sh import` | Makes the database match the files: creates, updates and deletes persons. The usual fix, for example after `git pull`. |
+| `./data.sh export` | Writes the database to the files, for the rare case where the database is right. Review the result with `git diff`. |
+
+On Windows, use `.\data.cmd` instead of `./data.sh`. An import checks every file first and
+changes nothing if any file is invalid, listing each problem with its file and field, or with
+line and column for broken JSON. A file with an unknown field or broken JSON is reported with
+that problem first; its other problems show once it is fixed. Persons keep their ids across
+imports as long as they are recognisably the same person, by Wikidata id or else by name and life
+dates.
+
 ## Design principles
 
 - The schema grows step by step through Flyway migrations.
@@ -104,8 +144,6 @@ Years use astronomical numbering, where year 0 is 1 BC and year -43 is 44 BC.
 
 - Dates are stored as the source gives them. Dates before 1582 are usually in the Julian calendar
   and are not converted, which may shift them by up to about ten days.
-- Data currently lives only in the database. Export to JSON files in the repository, as backup
-  and source of truth, is the next planned feature.
 - HTTP Basic authentication sends the password with every request, so a public deployment must
   use HTTPS.
 

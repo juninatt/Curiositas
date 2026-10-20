@@ -10,8 +10,9 @@ The plan is built feature by feature. Each step adds its own Flyway migration.
 - [x] Person: create, read, replace and delete, with validation, Problem Details, authentication for
   writes, ETag with If-Match, and duplicate detection
 - [x] Swagger UI and a read-only preview page
-- [ ] Data export and import as JSON files in `data/`, one file per person, committed to git as
-  backup and source of truth (export format = import format, verified by a round-trip test)
+- [x] JSON files in `data/` as the source of truth, one file per person: export, import, a
+  round-trip test, writing the files with every change, and refusing to start when the database
+  and the files differ
 - [ ] REST Assured, Testcontainers and contract validation of every response in CI
 - [ ] Load Mockito as a Java agent in the test build; it currently attaches itself at runtime,
   which future JDK versions will block
@@ -24,7 +25,7 @@ Version 1.0 promises that the API will not change in ways that break existing cl
 optional fields, endpoints and query parameters is safe afterwards; making a field required,
 renaming, removing or changing the meaning of one is not. Before 1.0:
 
-- [ ] JSON backup in `data/`, so no data depends on a single database
+- [x] JSON backup in `data/`, so no data depends on a single database
 - [ ] REST Assured and contract validation, so the API is proven to match its contract
 - [ ] The person fields have the shape they are meant to keep
 
@@ -66,11 +67,13 @@ All optional, so they can be added without breaking existing clients.
 
 ## Later
 
-- [ ] Places with coordinates
+- [ ] Places with coordinates, in a hierarchy (Bristol, England, United Kingdom, Europe), so an
+  uncertain birthplace can be given at the level the sources support
 - [ ] Which polity ruled a place over time, so a birthplace can be shown both as its modern country
   and as the realm it belonged to then (Königsberg: Prussia in 1724, Russia today)
 - [ ] Separate frontend (for example React) replacing the preview page, with CORS configured for it
-- [ ] Public deployment with HTTPS
+- [ ] Public deployment with HTTPS, building its database from `data/` on every deployment
+- [ ] Fill in facts from Wikidata by a person's Wikidata id, for review before they are stored
 - [ ] Bulk import of CSV with per-row error reporting
 - [ ] Black-box API test suite (Postman/Newman or Bruno)
 - [ ] Allure reports, mutation testing (PIT), load testing (Gatling)
